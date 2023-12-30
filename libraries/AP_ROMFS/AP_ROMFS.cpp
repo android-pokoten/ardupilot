@@ -122,20 +122,12 @@ const uint8_t *AP_ROMFS::find_decompress(const char *name, uint32_t &size)
     d->source = compressed_data;
     d->source_limit = compressed_data + compressed_size - 4;
 
-    // assume gzip format
-    int res = uzlib_gzip_parse_header(d);
-    if (res != TINF_OK) {
-        ::free(decompressed_data);
-        ::free(d);
-        return nullptr;
-    }
-
     d->dest = decompressed_data;
     d->destSize = decompressed_size;
 
     // we don't check CRC, as it just wastes flash space for constant
     // ROMFS data
-    res = uzlib_uncompress(d);
+    int res = uzlib_uncompress(d);
 
     ::free(d);
     

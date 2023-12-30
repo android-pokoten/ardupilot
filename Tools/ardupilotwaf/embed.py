@@ -7,7 +7,7 @@ Andrew Tridgell
 May 2017
 '''
 
-import os, sys, tempfile, gzip
+import os, sys, zlib
 
 # https://github.com/frida/xz/blob/e70f5800ab5001c9509d374dbf3e7e6b866c43fe/src/liblzma/simple/armthumb.c#L17-L49
 # public domain license
@@ -63,7 +63,6 @@ def embed_file(out, f, idx, embedded_name, uncompressed):
     assert contents == bcj(c2, is_encoder=False)
     contents = c2
 
-    compressed = tempfile.NamedTemporaryFile()
     if uncompressed:
         # ensure nul termination
         if sys.version_info[0] >= 3:
@@ -72,18 +71,16 @@ def embed_file(out, f, idx, embedded_name, uncompressed):
             nul = chr(0)
         if contents[-1] != nul:
             contents += nul
-        compressed.write(contents)
+        b = bytearray(contents)
     else:
-        # compress it
-        f = open(compressed.name, "wb")
-        with gzip.GzipFile(fileobj=f, mode='wb', filename='', compresslevel=9, mtime=0) as g:
-            g.write(contents)
-        f.close()
+        contents = bytearray(contents)
+        z = zlib.compressobj(9, zlib.DEFLATED, -15, 9)
+        b = bytearray()
+        b += z.compress(contents)
+        b += z.flush()
+        l = len(contents)
+        b += bytes([l & 0xFF, (l >> 8) & 0xFF, (l >> 16) & 0xFF, (l >> 24) & 0xFF])
 
-    compressed.seek(0)
-    b = bytearray(compressed.read())
-    compressed.close()
-    
     for c in b:
         write_encode(out, '%u,' % c)
     write_encode(out, '};\n\n');
