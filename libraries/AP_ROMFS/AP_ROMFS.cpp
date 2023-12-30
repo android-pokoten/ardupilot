@@ -69,13 +69,11 @@ armthumb_code(void *simple,
 /*
   find an embedded file
 */
-const uint8_t *AP_ROMFS::find_file(const char *name, uint32_t &size, uint32_t &crc)
+const struct embedded_file *AP_ROMFS::find_file(const char *name)
 {
     for (uint16_t i=0; i<ARRAY_SIZE(files); i++) {
         if (strcmp(name, files[i].filename) == 0) {
-            size = files[i].size;
-            crc = files[i].crc;
-            return files[i].contents;
+            return &files[i];
         }
     }
     return nullptr;
@@ -90,20 +88,23 @@ const uint8_t *AP_ROMFS::find_file(const char *name, uint32_t &size, uint32_t &c
 const uint8_t *AP_ROMFS::find_decompress(const char *name, uint32_t &size)
 {
     uint32_t compressed_size = 0;
+    uint32_t decompressed_size = 0;
     uint32_t crc;
-    const uint8_t *compressed_data = find_file(name, compressed_size, crc);
-    if (!compressed_data) {
+    const struct embedded_file *f = find_file(name);
+    if (!f) {
         return nullptr;
     }
+
+    compressed_size = f->size;
+    decompressed_size = f->dsize;
+    crc = f->crc;
+    const uint8_t *compressed_data = f->contents;
 
 #ifdef HAL_ROMFS_UNCOMPRESSED
     size = compressed_size;
     return compressed_data;
 #else
-    // last 4 bytes of gzip file are length of decompressed data
-    const uint8_t *p = &compressed_data[compressed_size-4];
-    uint32_t decompressed_size = p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24;
-    
+
     uint8_t *decompressed_data = (uint8_t *)malloc(decompressed_size + 1);
     if (!decompressed_data) {
         return nullptr;
@@ -120,7 +121,7 @@ const uint8_t *AP_ROMFS::find_decompress(const char *name, uint32_t &size)
     uzlib_uncompress_init(d, NULL, 0);
 
     d->source = compressed_data;
-    d->source_limit = compressed_data + compressed_size - 4;
+    d->source_limit = compressed_data + compressed_size;
 
     d->dest = decompressed_data;
     d->destSize = decompressed_size;

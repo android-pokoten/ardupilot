@@ -5,6 +5,14 @@
 
 #include <stdint.h>
 
+struct embedded_file {
+        const char *filename;
+        uint32_t size;
+        uint32_t dsize;
+        uint32_t crc;
+        const uint8_t *contents;
+    };
+
 class AP_ROMFS {
 public:
     // find a file and de-compress, assumning gzip format. The
@@ -25,13 +33,8 @@ public:
 
 private:
     // find an embedded file
-    static const uint8_t *find_file(const char *name, uint32_t &size, uint32_t &crc);
+    static const struct embedded_file *find_file(const char *name);
 
-    struct embedded_file {
-        const char *filename;
-        uint32_t size;
-        uint32_t crc;
-        const uint8_t *contents;
-    };
+    
     static const struct embedded_file files[];
 };

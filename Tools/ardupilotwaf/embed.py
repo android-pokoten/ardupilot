@@ -78,13 +78,11 @@ def embed_file(out, f, idx, embedded_name, uncompressed):
         b = bytearray()
         b += z.compress(contents)
         b += z.flush()
-        l = len(contents)
-        b += bytes([l & 0xFF, (l >> 8) & 0xFF, (l >> 16) & 0xFF, (l >> 24) & 0xFF])
 
     for c in b:
         write_encode(out, '%u,' % c)
     write_encode(out, '};\n\n');
-    return crc
+    return crc, len(bytearray(contents))
 
 def crc32(bytes, crc=0):
     '''crc32 equivalent to crc32_small() from AP_Math/crc.cpp'''
@@ -105,15 +103,16 @@ def create_embedded_h(filename, files, uncompressed=False):
     # remove duplicates and sort
     files = sorted(list(set(files)))
     crc = {}
+    dsize = {}
     for i in range(len(files)):
         (name, filename) = files[i]
         try:
-            crc[filename] = embed_file(out, filename, i, name, uncompressed)
+            crc[filename], dsize[filename] = embed_file(out, filename, i, name, uncompressed)
         except Exception as e:
             print(e)
             return False
 
-    write_encode(out, '''const AP_ROMFS::embedded_file AP_ROMFS::files[] = {\n''')
+    write_encode(out, '''const embedded_file AP_ROMFS::files[] = {\n''')
 
     for i in range(len(files)):
         (name, filename) = files[i]
@@ -122,7 +121,7 @@ def create_embedded_h(filename, files, uncompressed=False):
         else:
             ustr = ''
         print("Embedding file %s:%s%s" % (name, filename, ustr))
-        write_encode(out, '{ "%s", sizeof(ap_romfs_%u), 0x%08x, ap_romfs_%u },\n' % (name, i, crc[filename], i))
+        write_encode(out, '{ "%s", sizeof(ap_romfs_%u), %d, 0x%08x, ap_romfs_%u },\n' % (name, i, dsize[filename], crc[filename], i))
     write_encode(out, '};\n')
     out.close()
     return True
