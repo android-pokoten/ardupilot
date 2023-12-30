@@ -9,6 +9,30 @@ May 2017
 
 import os, sys, tempfile, gzip
 
+# https://github.com/frida/xz/blob/e70f5800ab5001c9509d374dbf3e7e6b866c43fe/src/liblzma/simple/armthumb.c#L17-L49
+# public domain license
+def bcj(buffer, is_encoder=True):
+    buffer = bytearray(buffer)
+    for i in range(0, len(buffer)-4, 2):
+        if ((buffer[i + 1] & 0xF8) == 0xF0
+                and (buffer[i + 3] & 0xF8) == 0xF8):
+            src = ((((buffer[i + 1]) & 7) << 19)
+                | ((buffer[i + 0]) << 11)
+                | (((buffer[i + 3]) & 7) << 8)
+                | (buffer[i + 2]));
+            src <<= 1;
+            if (is_encoder):
+                dest = i + 4 + src;
+            else:
+                dest = src - (i + 4);
+            dest &= 0xFFFFFFFF
+            dest >>= 1;
+            buffer[i + 1] = 0xF0 | ((dest >> 19) & 0x7);
+            buffer[i + 0] = (dest >> 11) & 0xFF;
+            buffer[i + 3] = 0xF8 | ((dest >> 8) & 0x7);
+            buffer[i + 2] = (dest) & 0xFF;
+    return buffer
+
 def write_encode(out, s):
     out.write(s.encode())
 
@@ -35,6 +59,9 @@ def embed_file(out, f, idx, embedded_name, uncompressed):
 
     crc = crc32(bytearray(contents))
     write_encode(out, '__EXTFLASHFUNC__ static const uint8_t ap_romfs_%u[] = {' % idx)
+    c2 = bcj(contents)
+    assert contents == bcj(c2, is_encoder=False)
+    contents = c2
 
     compressed = tempfile.NamedTemporaryFile()
     if uncompressed:
