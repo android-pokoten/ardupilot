@@ -19,22 +19,23 @@ def embed_file(out, f, idx, embedded_name, uncompressed):
     except Exception:
         raise Exception("Failed to embed %s" % f)
 
+    # ensure null termination
+    if contents[-1] != 0:
+        contents += bytes([0])
+
     if embedded_name.endswith("bootloader.bin"):
         # round size to a multiple of 32 bytes for bootloader, this ensures
         # it can be flashed on a STM32H7 chip
         blen = len(contents)
         pad = (32 - (blen % 32)) % 32
         if pad != 0:
-            contents += bytes([0xff]*pad)
+            contents += bytes([0]*pad) # ensure we are still null terminated
             print("Padded %u bytes for %s to %u" % (pad, embedded_name, len(contents)))
 
     crc = crc32(contents)
     write_encode(out, '__EXTFLASHFUNC__ static const uint8_t ap_romfs_%u[] = {' % idx)
 
     if uncompressed:
-        # ensure nul termination
-        if contents[-1] != 0:
-            contents += bytes([0])
         b = contents
     else:
         # compress it (max level, max window size, raw stream, max mem usage)
